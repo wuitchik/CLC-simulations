@@ -1,6 +1,6 @@
 # CLC Simulations
 
-This repository contains simulation models, analysis scripts, and manuscript materials for a study on evolutionary lag in species with complex life cycles (CLCs).
+This repository contains simulation models, analysis scripts, and manuscript materials for a study on evolutionary lag in species with complex life cycles (CLCs). Code is currently being developed, so expect changes and egregious errors. 
 
 ## Repository Structure
 
