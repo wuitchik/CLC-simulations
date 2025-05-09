@@ -9,7 +9,7 @@ This repository contains simulation models, analysis scripts, and manuscript mat
 - `figs/`: Final figures generated for the manuscript.
 - `scripts/slim/`: SLiM simulation scripts.
 - `scripts/analysis/`: Post-processing and analysis scripts (R or Python).
+- `scripts/slurm/`: cluster scheduling and job management
 - `tex/`: LaTeX manuscript and related files.
   - `main.tex`: Main LaTeX file for the manuscript.
-  - `sections/`: Optional directory for separate LaTeX section files.
   - `bibliography.bib`: Reference library in BibTeX format.
