@@ -1,0 +1,23 @@
+# LaTeX auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# BibTeX files
+*.bbl
+*.blg
+
+# Editor/OS files
+.DS_Store
+Thumbs.db
+*~
+
+# Output figures (optional: keep final versions only)
+figs/*.pdf
+figs/*.png
