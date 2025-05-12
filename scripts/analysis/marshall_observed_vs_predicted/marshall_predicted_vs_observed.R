@@ -1,14 +1,17 @@
 library(tidyverse)
 library(viridis)
+library(patchwork)
 
-# Load the summary data
-df <- read_csv("lag_summary_cleaned.csv") %>%
-  filter(eta < 0.37)
+# Load and clean data
+df <- read_csv("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/processed/eta_ground_NOseason_summary.csv") %>%
+  filter(if_all(everything(), is.finite)) %>%
+  filter(!if_any(everything(), ~ . < 0)) %>%
+  filter(eta < 0.35) %>%
+  na.omit()
 
 # Plot for larvae
 max_larvae <- max(c(df$avg_predLagLarvae, df$avg_obsLagLarvae), na.rm = TRUE)
-
-ggplot(df, aes(x = avg_predLagLarvae, y = avg_obsLagLarvae, fill = eta)) +
+p1 <- ggplot(df, aes(x = avg_predLagLarvae, y = avg_obsLagLarvae, fill = eta)) +
   geom_point(alpha = 0.9, shape = 21, color = "black", size = 3, stroke = 0.3) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
   coord_equal(xlim = c(0, max_larvae), ylim = c(0, max_larvae)) +
@@ -25,12 +28,9 @@ ggplot(df, aes(x = avg_predLagLarvae, y = avg_obsLagLarvae, fill = eta)) +
     legend.title.align = 0.5
   )
 
-ggsave("summary_lag_larvae_by_eta.png", width = 5, height = 5)
-
 # Plot for adults
 max_adults <- max(c(df$avg_predLagAdults, df$avg_obsLagAdults), na.rm = TRUE)
-
-ggplot(df, aes(x = avg_predLagAdults, y = avg_obsLagAdults, fill = eta)) +
+p2 <- ggplot(df, aes(x = avg_predLagAdults, y = avg_obsLagAdults, fill = eta)) +
   geom_point(alpha = 0.9, shape = 21, color = "black", size = 3, stroke = 0.3) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
   coord_equal(xlim = c(0, max_adults), ylim = c(0, max_adults)) +
@@ -47,4 +47,7 @@ ggplot(df, aes(x = avg_predLagAdults, y = avg_obsLagAdults, fill = eta)) +
     legend.title.align = 0.5
   )
 
-ggsave("summary_lag_adults_by_eta.png", width = 5, height = 5)
+# Combine with patchwork and add labels A) and B)
+combined_plot <- p1 + p2 + plot_annotation(tag_levels = "A")
+ggsave("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/figs/ground_truth/no_season_pred_vs_obser.png", combined_plot, width = 10, height = 5)
+ggsave("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/figs/ground_truth/no_season_pred_vs_obser.pdf", combined_plot, width = 10, height = 5)
