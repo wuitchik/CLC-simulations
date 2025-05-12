@@ -13,11 +13,12 @@ initialize() {
 	initializeSLiMOptions(dimensionality="xy");
 	
 	defaults = Dictionary(
+		// SLURM defined constants		
 		"SEED", getSeed(),
+		"OUTDIR", OUTDIR,
+		"MAP_FILE", MAP_FILE,  
 		
-		// running parameters
-		"OUTDIR", "./output/",
-		"MAP_FILE", "./solid_gray_27_deg_corrected.png",  // map file
+		// Running parameters
 		"WIDTH", 2000,
 		"HEIGHT", 2000,
 		"N", 2000,
