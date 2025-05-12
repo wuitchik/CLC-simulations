@@ -70,7 +70,7 @@ initialize() {
 	defaults.setValue("ETA", SEED * 0.01);
 	defineConstant("ETA", defaults.getValue("ETA"));
 
-	
+		
 	
 	initializeMutationRate(MU);
 	initializeMutationType("m1", 0.5, "f", 0.0);
@@ -82,6 +82,8 @@ initialize() {
 	initializeGenomicElement(g1, 0, L-1);
 	initializeGenomicElement(g2, L, L+C);
 	initializeRecombinationRate(c(R, 0.5, R),c(L-1, L, L+C));
+
+
 	
 	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=3 * SX);
 	i1.setInteractionFunction("n", 1, SX);
@@ -112,6 +114,9 @@ initialize() {
 	defineGlobal("WINTER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", WINTER_TEMPERATURE, interpolate=T));
 	defineGlobal("TEMPMAP", SUMMER_TEMPMAP); // No offset here!
 	
+	// Explicit stage optima maps:
+	defineGlobal("OPTIMA_LARVAE", TEMPMAP); // Larvae match environment
+	defineGlobal("OPTIMA_ADULTS", p1.defineSpatialMap("temperature", "xy", SUMMER_TEMPERATURE - STAGE_OPTIMA_DIFF, interpolate=T)); // Adult optimum explicitly offset
 	
 	
 	
@@ -183,7 +188,7 @@ late() {
 	if (size(allInds) > 1) {
 		eL = c(); eA = c();
 		for (ind in allInds) {
-			muts = ind.haplosomes.mutationsOfType(m2);
+			muts = ind.mutationsOfType(m2);
 			eL_val = size(muts) ? sum(muts.getValue("eL")) else INITIAL_LARVA_PHENOTYPE;
 			eA_val = size(muts) ? sum(muts.getValue("eA")) else INITIAL_ADULT_PHENOTYPE;
 			eL = c(eL, eL_val);
@@ -234,6 +239,48 @@ late() {
 
 }
 
+
+
+
+
+// 8) write CSV header once
+//    if (isNULL(sim.getValue("header_written"))) {
+//       sim.setValue("header_written", T);
+//       writeFile(OUTDIR + "/output.csv",
+//                 "tick,avg_temp,avg_adult,avg_larval,var_PL,var_PA,cov_PL_PA,lagPredL,lagPredA\n",
+//                 append=F);
+//    }
+
+// 9) append summary line
+//    writeFile(OUTDIR + "/output.csv",
+//              sim.cycle   + "," +
+//              avg_temp    + "," +
+//              avg_adult   + "," +
+//              avg_larval  + "," +
+//             var_PL      + "," +
+//              var_PA      + "," +
+//              cov_PL_PA   + "," +
+//              lagPredL    + "," +
+//              lagPredA    + "\n",
+//              append=T);
+
+// 10) console printing once
+//    if (isNULL(sim.getValue("console_header"))) {
+//        sim.setValue("console_header", T);
+//        catn("--------------------------------------------------------");
+//        catn("Tick | AvgTemp | AvgAdult | AvgLarval | lagPredA");
+//        catn("--------------------------------------------------------");
+//    }
+//    catn(sim.cycle + " | " +
+//         avg_temp   + " | " +
+//        avg_adult  + " | " +
+//         avg_larval + " | " +
+//         lagPredA);
+
+
+
+
+// Also print vertical temperature profile every 20 years
 
 // **********************************************
 // *************** APPLY MUTATIONS **************
@@ -388,15 +435,7 @@ early() {
 					(dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A));
 			}
 			bh = 1/(1+competition/K);
-			
-			//************************//
-			//************************//
-			////////////////////////////
-			ind.fitnessScaling = 1.0; // changed for ground truth
-			////////////////////////////
-			//************************//
-			//************************//
-			
+			ind.fitnessScaling = 1.0; // changed for groud truth
 			ind.setValue("genotype", genotype_adult);
 			ind.setValue("plasticity", plasticity_adult);
 			ind.setValue("fitness", bh * winter_scaling);  // or winter_scaling
@@ -404,8 +443,6 @@ early() {
 		}
 	}
 }
-
-
 
 
 
