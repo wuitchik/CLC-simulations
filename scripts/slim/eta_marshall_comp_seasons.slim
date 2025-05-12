@@ -373,7 +373,7 @@ early() {
 			
 			
 			
-			if (phenotype_adult > optimal_adult) {
+			if (phenotype_adult > local_temp) {
 				summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA + DELTA) * SENSITIVITY_A) /
 					(dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_A));
 			} else {
