@@ -362,7 +362,6 @@ early() {
 		
 		for (ind in adults) {
 			local_temp = TEMPMAP.mapValue(ind.spatialPosition); // Actual environment
-			optimal_adult = OPTIMA_ADULTS.mapValue(ind.spatialPosition); // Explicit adult optimum
 			competition = i1.localPopulationDensity(ind);
 			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
 			genotype_adult = size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
@@ -370,9 +369,7 @@ early() {
 			plasticity_adult = PLASTICITY_A * mismatch; // this needs to be justified - look for existing plasticity terms. 
 			phenotype_adult = genotype_adult + plasticity_adult;
 			ind.setValue("phenotype", phenotype_adult);
-			
-			
-			
+	
 			if (phenotype_adult > local_temp) {
 				summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA + DELTA) * SENSITIVITY_A) /
 					(dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_A));
@@ -418,7 +415,7 @@ early() {
 	} else { // WINTER CONDITIONS
 		
 		for (ind in adults) {
-			local_temp = TEMPMAP.mapValue(ind.spatialPosition) - STAGE_OPTIMA_DIFF;
+			local_temp = TEMPMAP.mapValue(ind.spatialPosition);
 			competition = i1.localPopulationDensity(ind);
 			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
 			genotype_adult =  size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
@@ -435,10 +432,10 @@ early() {
 					(dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A));
 			}
 			bh = 1/(1+competition/K);
-			ind.fitnessScaling = 1.0; // changed for groud truth
+			ind.fitnessScaling = bh*winter_scaling;; 
 			ind.setValue("genotype", genotype_adult);
 			ind.setValue("plasticity", plasticity_adult);
-			ind.setValue("fitness", bh * winter_scaling);  // or winter_scaling
+			ind.setValue("fitness", bh * winter_scaling); 
 		
 		}
 	}
