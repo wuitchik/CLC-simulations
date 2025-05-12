@@ -7,8 +7,8 @@
 #SBATCH --output=/cluster/home/dwuitc01/CLC-simulations/scripts/slurm/logs/eta_%A_%a.out
 #SBATCH --error=/cluster/home/dwuitc01/CLC-simulations/scripts/slurm/logs/eta_%A_%a.err
 
-# Load the SLiM module (or your custom path if needed)
-module load slim
+# Use cluster built SLiM
+SLIM_PATH="$HOME/slim_build/SLiM/build/slim"
 
 # Set variables
 SEED=${SLURM_ARRAY_TASK_ID}
