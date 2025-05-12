@@ -266,7 +266,7 @@ reproduction() {
 
 
 
-// ************************************************ 
+/ ************************************************ 
 // ******************** EARLY ********************* 
 // ************************************************
 
@@ -314,8 +314,9 @@ early() {
 		
 		for (ind in adults) {
 			local_temp = TEMPMAP.mapValue(ind.spatialPosition); // Actual environment
+			optimal_adult = OPTIMA_ADULTS.mapValue(ind.spatialPosition); // Explicit adult optimum
 			competition = i1.localPopulationDensity(ind);
-			muts = ind.haplosomes.mutationsOfType(m2);
+			muts = c(ind.genome1.mutationsOfType(m2), ind.genome2.mutationsOfType(m2));
 			genotype_adult = size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
 			mismatch = local_temp - genotype_adult;
 			plasticity_adult = PLASTICITY_A * mismatch; // this needs to be justified - look for existing plasticity terms. 
@@ -331,7 +332,9 @@ early() {
 				summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA - DELTA) * SENSITIVITY_A) /
 					(dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A));
 			}
-		
+			
+			
+			// produce an offset here to see if it addresses the lagged lag
 			bh = 1/(1+competition/K);
 			ind.fitnessScaling = bh*summer_scaling;
 			ind.setValue("genotype", genotype_adult);
@@ -341,7 +344,7 @@ early() {
 		
 		for (ind in larvae) {
 			local_temp = TEMPMAP.mapValue(ind.spatialPosition);
-			muts = ind.haplosomes.mutationsOfType(m2);
+			muts = c(ind.genome1.mutationsOfType(m2), ind.genome2.mutationsOfType(m2));
 			competition = i1.localPopulationDensity(ind);
 			genotype_larvae = size(muts) ? sum(muts.getValue("eL")) + INITIAL_LARVA_PHENOTYPE else INITIAL_LARVA_PHENOTYPE;
 			mismatch = TEMPMAP.mapValue(ind.spatialPosition) - genotype_larvae;
@@ -367,9 +370,9 @@ early() {
 	} else { // WINTER CONDITIONS
 		
 		for (ind in adults) {
-			local_temp = TEMPMAP.mapValue(ind.spatialPosition);
+			local_temp = TEMPMAP.mapValue(ind.spatialPosition) - STAGE_OPTIMA_DIFF;
 			competition = i1.localPopulationDensity(ind);
-			muts = ind.haplosomes.mutationsOfType(m2);
+			muts = c(ind.genome1.mutationsOfType(m2), ind.genome2.mutationsOfType(m2));
 			genotype_adult =  size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
 			mismatch = TEMPMAP.mapValue(ind.spatialPosition) - genotype_adult;
 			plasticity_adult = PLASTICITY_A * mismatch; // this can be negative due to mismatch 
@@ -384,7 +387,15 @@ early() {
 					(dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A));
 			}
 			bh = 1/(1+competition/K);
-			ind.fitnessScaling = bh*winter_scaling;
+			
+			//************************//
+			//************************//
+			////////////////////////////
+			ind.fitnessScaling = 1.0; // changed for ground truth
+			////////////////////////////
+			//************************//
+			//************************//
+			
 			ind.setValue("genotype", genotype_adult);
 			ind.setValue("plasticity", plasticity_adult);
 			ind.setValue("fitness", bh * winter_scaling);  // or winter_scaling
@@ -392,6 +403,8 @@ early() {
 		}
 	}
 }
+
+
 
 
 
