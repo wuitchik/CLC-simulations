@@ -188,7 +188,7 @@ late() {
 	if (size(allInds) > 1) {
 		eL = c(); eA = c();
 		for (ind in allInds) {
-			muts = ind.mutationsOfType(m2);
+			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
 			eL_val = size(muts) ? sum(muts.getValue("eL")) else INITIAL_LARVA_PHENOTYPE;
 			eA_val = size(muts) ? sum(muts.getValue("eA")) else INITIAL_ADULT_PHENOTYPE;
 			eL = c(eL, eL_val);
@@ -364,7 +364,7 @@ early() {
 			local_temp = TEMPMAP.mapValue(ind.spatialPosition); // Actual environment
 			optimal_adult = OPTIMA_ADULTS.mapValue(ind.spatialPosition); // Explicit adult optimum
 			competition = i1.localPopulationDensity(ind);
-			muts = c(ind.genome1.mutationsOfType(m2), ind.genome2.mutationsOfType(m2));
+			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
 			genotype_adult = size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
 			mismatch = local_temp - genotype_adult;
 			plasticity_adult = PLASTICITY_A * mismatch; // this needs to be justified - look for existing plasticity terms. 
@@ -392,7 +392,7 @@ early() {
 		
 		for (ind in larvae) {
 			local_temp = TEMPMAP.mapValue(ind.spatialPosition);
-			muts = c(ind.genome1.mutationsOfType(m2), ind.genome2.mutationsOfType(m2));
+			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
 			competition = i1.localPopulationDensity(ind);
 			genotype_larvae = size(muts) ? sum(muts.getValue("eL")) + INITIAL_LARVA_PHENOTYPE else INITIAL_LARVA_PHENOTYPE;
 			mismatch = TEMPMAP.mapValue(ind.spatialPosition) - genotype_larvae;
@@ -420,7 +420,7 @@ early() {
 		for (ind in adults) {
 			local_temp = TEMPMAP.mapValue(ind.spatialPosition) - STAGE_OPTIMA_DIFF;
 			competition = i1.localPopulationDensity(ind);
-			muts = c(ind.genome1.mutationsOfType(m2), ind.genome2.mutationsOfType(m2));
+			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
 			genotype_adult =  size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
 			mismatch = TEMPMAP.mapValue(ind.spatialPosition) - genotype_adult;
 			plasticity_adult = PLASTICITY_A * mismatch; // this can be negative due to mismatch 
