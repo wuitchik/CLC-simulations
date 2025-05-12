@@ -67,6 +67,8 @@ initialize() {
 	defineGlobal("PARAMS", defaults);
 	setSeed(SEED);
 	defaults.setValue("ETA", SEED * 0.01);
+	defineConstant("ETA", defaults.getValue("ETA"));
+
 	
 	
 	initializeMutationRate(MU);
