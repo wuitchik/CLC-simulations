@@ -3,10 +3,10 @@ library(viridis)
 library(patchwork)
 
 # Load and clean data
-df <- read_csv("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/processed/eta_ground_NOseason_summary.csv") %>%
+df <- read_csv("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/processed/eta_ground_YESseason_summary.csv") %>%
   filter(if_all(everything(), is.finite)) %>%
   filter(!if_any(everything(), ~ . < 0)) %>%
-  filter(eta < 0.35) %>%
+  filter(eta < 0.32) %>%
   na.omit()
 
 # Plot for larvae
@@ -49,5 +49,5 @@ p2 <- ggplot(df, aes(x = avg_predLagAdults, y = avg_obsLagAdults, fill = eta)) +
 
 # Combine with patchwork and add labels A) and B)
 combined_plot <- p1 + p2 + plot_annotation(tag_levels = "A")
-ggsave("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/figs/ground_truth/no_season_pred_vs_obser.png", combined_plot, width = 10, height = 5)
-ggsave("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/figs/ground_truth/no_season_pred_vs_obser.pdf", combined_plot, width = 10, height = 5)
+ggsave("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/figs/ground_truth/season_pred_vs_obser.png", combined_plot, width = 10, height = 5)
+ggsave("/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/figs/ground_truth/season_pred_vs_obser.pdf", combined_plot, width = 10, height = 5)

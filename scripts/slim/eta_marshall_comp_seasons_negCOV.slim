@@ -46,7 +46,6 @@ initialize() {
 		"INITIAL_ADULT_PHENOTYPE", 0.0,
 		"INITIAL_LARVA_PHENOTYPE", 0.0,
 		"FECUN", 4.0,
-		"STAGE_OPTIMA_DIFF", 5.0,
 		
 		// environmental parameters
 		"WINTER_DIFFERENCE", 0.0,
@@ -107,14 +106,7 @@ initialize() {
 	defineGlobal("SUMMER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", SUMMER_TEMPERATURE, interpolate=T));
 	defineGlobal("WINTER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", WINTER_TEMPERATURE, interpolate=T));
 	defineGlobal("TEMPMAP", SUMMER_TEMPMAP); // No offset here!
-	
-	// Explicit stage optima maps:
-	defineGlobal("OPTIMA_LARVAE", TEMPMAP); // Larvae match environment
-	defineGlobal("OPTIMA_ADULTS", p1.defineSpatialMap("temperature", "xy", SUMMER_TEMPERATURE - STAGE_OPTIMA_DIFF, interpolate=T)); // Adult optimum explicitly offset
-	
-	
-	
-	
+
 	sim.setValue("printed_header", F);
 	
 	
@@ -132,7 +124,75 @@ initialize() {
 // ****************** LATE ********************** 
 // **********************************************
 late() {
-	
+	// Write header once
+if (isNULL(sim.getValue("output_header_written"))) {
+    sim.setValue("output_header_written", T);
+    writeFile(OUTDIR + "/output_" + SEED + ".csv",
+    "tick,season,pop_size,adult_pop,larvae_pop,avg_temp,avg_adult_pheno,avg_larval_pheno,avg_adult_fitness,avg_larval_fitness,var_adult_pheno,var_larval_pheno,geno_cov_adult_larvae,avg_adult_genotype,avg_larval_genotype,avg_adult_mismatch,avg_larval_mismatch,genetic_load\n",
+    append=F);
+}
+
+// Data collection
+pop_size = p1.individualCount;
+adult_inds = p1.subsetIndividuals(minAge=MATURATIONTIME);
+larvae_inds = p1.subsetIndividuals(maxAge=0);
+adult_pop = size(adult_inds);
+larvae_pop = size(larvae_inds);
+
+// Average temperature
+avg_temp = mean(p1.individuals.applyValue("spatialPosition", "p -> TEMPMAP.mapValue(p)"));
+
+// Phenotypes
+adult_phenos = adult_inds.getValue("phenotype");
+larval_phenos = larvae_inds.getValue("phenotype");
+
+// Fitnesses
+adult_fit = adult_inds.getValue("fitness");
+larval_fit = larvae_inds.getValue("fitness");
+
+// Genotypes
+adult_geno = adult_inds.getValue("genotype");
+larval_geno = larvae_inds.getValue("genotype");
+
+// Phenotype variance and genetic covariance
+var_adult_pheno = size(adult_phenos)>1 ? var(adult_phenos) else 0;
+var_larval_pheno = size(larval_phenos)>1 ? var(larval_phenos) else 0;
+geno_cov = (size(adult_geno)>1 & size(larval_geno)>1) ? cov(adult_geno,larval_geno) else 0;
+
+// Mismatch
+adult_mismatch = adult_inds.applyValue("phenotype", "p -> TEMPMAP.mapValue(individual.spatialPosition)-p");
+larval_mismatch = larvae_inds.applyValue("phenotype", "p -> TEMPMAP.mapValue(individual.spatialPosition)-p");
+
+// Genetic load (1 - fitness scaling; perfect fitness = 1)
+all_inds = p1.individuals;
+all_fitness = all_inds.getValue("fitness");
+genetic_load = mean(1.0 - all_fitness);
+
+// Current season
+current_season = sim.getValue("season");
+
+// Write data
+writeFile(OUTDIR + "/output_" + SEED + ".csv",
+    sim.cycle + "," + 
+    current_season + "," +
+    pop_size + "," +
+    adult_pop + "," +
+    larvae_pop + "," +
+    avg_temp + "," +
+    mean(adult_phenos) + "," +
+    mean(larval_phenos) + "," +
+    mean(adult_fit) + "," +
+    mean(larval_fit) + "," +
+    var_adult_pheno + "," +
+    var_larval_pheno + "," +
+    geno_cov + "," +
+    mean(adult_geno) + "," +
+    mean(larval_geno) + "," +
+    mean(adult_mismatch) + "," +
+    mean(larval_mismatch) + "," +
+    genetic_load + "\n",
+append=T);
+
 	
 	// prints lag header
 	if (isNULL(sim.getValue("lag_header_written"))) {
@@ -237,44 +297,8 @@ late() {
 
 
 
-// 8) write CSV header once
-//    if (isNULL(sim.getValue("header_written"))) {
-//       sim.setValue("header_written", T);
-//       writeFile(OUTDIR + "/output.csv",
-//                 "tick,avg_temp,avg_adult,avg_larval,var_PL,var_PA,cov_PL_PA,lagPredL,lagPredA\n",
-//                 append=F);
-//    }
-
-// 9) append summary line
-//    writeFile(OUTDIR + "/output.csv",
-//              sim.cycle   + "," +
-//              avg_temp    + "," +
-//              avg_adult   + "," +
-//              avg_larval  + "," +
-//             var_PL      + "," +
-//              var_PA      + "," +
-//              cov_PL_PA   + "," +
-//              lagPredL    + "," +
-//              lagPredA    + "\n",
-//              append=T);
-
-// 10) console printing once
-//    if (isNULL(sim.getValue("console_header"))) {
-//        sim.setValue("console_header", T);
-//        catn("--------------------------------------------------------");
-//        catn("Tick | AvgTemp | AvgAdult | AvgLarval | lagPredA");
-//        catn("--------------------------------------------------------");
-//    }
-//    catn(sim.cycle + " | " +
-//         avg_temp   + " | " +
-//        avg_adult  + " | " +
-//         avg_larval + " | " +
-//         lagPredA);
 
 
-
-
-// Also print vertical temperature profile every 20 years
 
 // **********************************************
 // *************** APPLY MUTATIONS **************

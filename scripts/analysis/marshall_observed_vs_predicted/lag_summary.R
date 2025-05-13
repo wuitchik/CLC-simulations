@@ -2,7 +2,7 @@ library(tidyverse)
 
 # List all lag_*.csv files
 files <- list.files(
-  path = "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/raw/eta_marshall_comp",
+  path = "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/raw/eta_marshall_comp_seasons/",
   pattern = "^lag_[0-9]+\\.csv$",
   full.names = TRUE
 )
@@ -32,7 +32,7 @@ summarize_lag <- function(file) {
 summary_df <- map_dfr(files, summarize_lag)
 
 # Save to CSV
-write_csv(summary_df, "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/processed/eta_ground_NOseason_summary.csv")
+write_csv(summary_df, "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/processed/eta_ground_YESseason_summary.csv")
 
 # Print first few lines to confirm
 print(head(summary_df))
