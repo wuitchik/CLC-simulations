@@ -124,6 +124,14 @@ initialize() {
 // ****************** LATE ********************** 
 // **********************************************
 late() {
+	i2.evaluate(p1);
+
+    // Immediately check extinction
+    if (p1.individualCount == 0) {
+        catn("Extinct at tick " + sim.cycle);
+        sim.simulationFinished();
+        return;
+    }
 // Average temperature
 temps = c();
 for (ind in p1.individuals) {
@@ -131,32 +139,34 @@ for (ind in p1.individuals) {
 }
 avg_temp = mean(temps);
 
-// Phenotypes
-adult_phenos = adult_inds.getValue("phenotype");
-larval_phenos = larvae_inds.getValue("phenotype");
-avg_adult_pheno = size(adult_phenos) ? mean(adult_phenos) else 0;
+	inds = p1.individuals;
+	
+// Phenotypes	
+	adults = p1.subsetIndividuals(minAge = MATURATIONTIME);
+	adult_phenos = c();
+	for (ind in adults) adult_phenos = c(adult_phenos, ind.getValue("phenotype"));
+	avg_adult_pheno = size(adult_phenos) ? mean(adult_phenos) else 0;
+	
+	
+	larvae = p1.subsetIndividuals(maxAge = 0);
+	larval_phenos = c();
+	for (ind in larvae) larval_phenos = c(larval_phenos, ind.getValue("phenotype"));
 avg_larval_pheno = size(larval_phenos) ? mean(larval_phenos) else 0;
 
 // Fitnesses
-adult_fit = adult_inds.getValue("fitness");
-larval_fit = larvae_inds.getValue("fitness");
+
+adult_fit = c();
+for (ind in adults) adult_fit = c(adult_fit, ind.getValue("fitness"));
 avg_adult_fitness = size(adult_fit) ? mean(adult_fit) else 0;
+
+larval_fit = c();
+for (ind in larvae) larval_fit = c(larval_fit, ind.getValue("fitness"));
 avg_larval_fitness = size(larval_fit) ? mean(larval_fit) else 0;
 
-// Genotypes
-adult_geno = adult_inds.getValue("genotype");
-larval_geno = larvae_inds.getValue("genotype");
-avg_adult_genotype = size(adult_geno) ? mean(adult_geno) else 0;
-avg_larval_genotype = size(larval_geno) ? mean(larval_geno) else 0;
-
-// Variances and covariance
-var_adult_pheno = size(adult_phenos)>1 ? var(adult_phenos) else 0;
-var_larval_pheno = size(larval_phenos)>1 ? var(larval_phenos) else 0;
-geno_cov = (size(adult_geno)>1 & size(larval_geno)>1) ? cov(adult_geno, larval_geno) else 0;
 
 // Adult mismatch
 adult_mismatch_vals = c();
-for (ind in adult_inds){
+for (ind in adults){
     mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
     adult_mismatch_vals = c(adult_mismatch_vals, mismatch);
 }
@@ -164,7 +174,7 @@ adult_mismatch = mean(adult_mismatch_vals);
 
 // Larval mismatch
 larval_mismatch_vals = c();
-for (ind in larvae_inds){
+for (ind in larvae){
     mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
     larval_mismatch_vals = c(larval_mismatch_vals, mismatch);
 }
@@ -184,34 +194,12 @@ genetic_load = mean(1.0 - all_fitness);
 			);
 	
 	}
-	
-	// Always evaluate mating interactions
-	i2.evaluate(p1);
-	
-	// If the population’s gone, stop
-	if (p1.individualCount == 0) {
-		catn("Extinct at tick " + sim.cycle);
-		sim.simulationFinished();
-		return;
-	}
-	
+
 	// Only do the lag calculation & write in summer
 	if (sim.getValue("season") != "summer") {
 		return;
 	}
 	
-	// --- Summer block starts here ---
-	inds = p1.individuals;
-	
-	
-	adults = p1.subsetIndividuals(minAge = MATURATIONTIME);
-	adult_phenos = c();
-	for (ind in adults) adult_phenos = c(adult_phenos, ind.getValue("phenotype"));
-	
-	
-	larvae = p1.subsetIndividuals(maxAge = 0);
-	larval_phenos = c();
-	for (ind in larvae) larval_phenos = c(larval_phenos, ind.getValue("phenotype"));
 	
 	// setting up marshall predictions 
 	
