@@ -124,74 +124,55 @@ initialize() {
 // ****************** LATE ********************** 
 // **********************************************
 late() {
-	// Write header once
-if (isNULL(sim.getValue("output_header_written"))) {
-    sim.setValue("output_header_written", T);
-    writeFile(OUTDIR + "/output_" + SEED + ".csv",
-    "tick,season,pop_size,adult_pop,larvae_pop,avg_temp,avg_adult_pheno,avg_larval_pheno,avg_adult_fitness,avg_larval_fitness,var_adult_pheno,var_larval_pheno,geno_cov_adult_larvae,avg_adult_genotype,avg_larval_genotype,avg_adult_mismatch,avg_larval_mismatch,genetic_load\n",
-    append=F);
-}
-
-// Data collection
-pop_size = p1.individualCount;
-adult_inds = p1.subsetIndividuals(minAge=MATURATIONTIME);
-larvae_inds = p1.subsetIndividuals(maxAge=0);
-adult_pop = size(adult_inds);
-larvae_pop = size(larvae_inds);
-
 // Average temperature
-avg_temp = mean(p1.individuals.applyValue("spatialPosition", "p -> TEMPMAP.mapValue(p)"));
+temps = c();
+for (ind in p1.individuals) {
+    temps = c(temps, TEMPMAP.mapValue(ind.spatialPosition));
+}
+avg_temp = mean(temps);
 
 // Phenotypes
 adult_phenos = adult_inds.getValue("phenotype");
 larval_phenos = larvae_inds.getValue("phenotype");
+avg_adult_pheno = size(adult_phenos) ? mean(adult_phenos) else 0;
+avg_larval_pheno = size(larval_phenos) ? mean(larval_phenos) else 0;
 
 // Fitnesses
 adult_fit = adult_inds.getValue("fitness");
 larval_fit = larvae_inds.getValue("fitness");
+avg_adult_fitness = size(adult_fit) ? mean(adult_fit) else 0;
+avg_larval_fitness = size(larval_fit) ? mean(larval_fit) else 0;
 
 // Genotypes
 adult_geno = adult_inds.getValue("genotype");
 larval_geno = larvae_inds.getValue("genotype");
+avg_adult_genotype = size(adult_geno) ? mean(adult_geno) else 0;
+avg_larval_genotype = size(larval_geno) ? mean(larval_geno) else 0;
 
-// Phenotype variance and genetic covariance
+// Variances and covariance
 var_adult_pheno = size(adult_phenos)>1 ? var(adult_phenos) else 0;
 var_larval_pheno = size(larval_phenos)>1 ? var(larval_phenos) else 0;
-geno_cov = (size(adult_geno)>1 & size(larval_geno)>1) ? cov(adult_geno,larval_geno) else 0;
+geno_cov = (size(adult_geno)>1 & size(larval_geno)>1) ? cov(adult_geno, larval_geno) else 0;
 
-// Mismatch
-adult_mismatch = adult_inds.applyValue("phenotype", "p -> TEMPMAP.mapValue(individual.spatialPosition)-p");
-larval_mismatch = larvae_inds.applyValue("phenotype", "p -> TEMPMAP.mapValue(individual.spatialPosition)-p");
+// Adult mismatch
+adult_mismatch_vals = c();
+for (ind in adult_inds){
+    mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
+    adult_mismatch_vals = c(adult_mismatch_vals, mismatch);
+}
+adult_mismatch = mean(adult_mismatch_vals);
 
-// Genetic load (1 - fitness scaling; perfect fitness = 1)
-all_inds = p1.individuals;
-all_fitness = all_inds.getValue("fitness");
+// Larval mismatch
+larval_mismatch_vals = c();
+for (ind in larvae_inds){
+    mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
+    larval_mismatch_vals = c(larval_mismatch_vals, mismatch);
+}
+larval_mismatch = mean(larval_mismatch_vals);
+
+// Genetic load (correct as-is)
+all_fitness = p1.individuals.getValue("fitness");
 genetic_load = mean(1.0 - all_fitness);
-
-// Current season
-current_season = sim.getValue("season");
-
-// Write data
-writeFile(OUTDIR + "/output_" + SEED + ".csv",
-    sim.cycle + "," + 
-    current_season + "," +
-    pop_size + "," +
-    adult_pop + "," +
-    larvae_pop + "," +
-    avg_temp + "," +
-    mean(adult_phenos) + "," +
-    mean(larval_phenos) + "," +
-    mean(adult_fit) + "," +
-    mean(larval_fit) + "," +
-    var_adult_pheno + "," +
-    var_larval_pheno + "," +
-    geno_cov + "," +
-    mean(adult_geno) + "," +
-    mean(larval_geno) + "," +
-    mean(adult_mismatch) + "," +
-    mean(larval_mismatch) + "," +
-    genetic_load + "\n",
-append=T);
 
 	
 	// prints lag header
@@ -221,11 +202,7 @@ append=T);
 	
 	// --- Summer block starts here ---
 	inds = p1.individuals;
-	temps = c();
-	for (ind in inds) {
-		temps = c(temps, TEMPMAP.mapValue(ind.spatialPosition));
-	}
-	avg_temp = (size(temps) > 0) ? mean(temps) else 0.0;
+	
 	
 	adults = p1.subsetIndividuals(minAge = MATURATIONTIME);
 	adult_phenos = c();
