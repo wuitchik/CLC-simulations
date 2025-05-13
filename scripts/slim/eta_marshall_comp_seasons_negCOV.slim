@@ -166,21 +166,22 @@ avg_larval_fitness = size(larval_fit) ? mean(larval_fit) else 0;
 
 // Adult mismatch
 adult_mismatch_vals = c();
-for (ind in adults){
+for (ind in adult_inds){
     mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
     adult_mismatch_vals = c(adult_mismatch_vals, mismatch);
 }
-adult_mismatch = mean(adult_mismatch_vals);
+adult_mismatch = size(adult_mismatch_vals) ? mean(adult_mismatch_vals) else 0.0;
 
 // Larval mismatch
 larval_mismatch_vals = c();
-for (ind in larvae){
+for (ind in larvae_inds){
     mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
     larval_mismatch_vals = c(larval_mismatch_vals, mismatch);
 }
-larval_mismatch = mean(larval_mismatch_vals);
+larval_mismatch = size(larval_mismatch_vals) ? mean(larval_mismatch_vals) else 0.0;
 
-// Genetic load (correct as-is)
+
+// Genetic load 
 all_fitness = p1.individuals.getValue("fitness");
 genetic_load = mean(1.0 - all_fitness);
 
