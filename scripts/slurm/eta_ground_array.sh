@@ -13,9 +13,9 @@ SLIM_PATH="$HOME/slim_build/SLiM/build/slim"
 # Set variables
 SEED=${SLURM_ARRAY_TASK_ID}
 ETA=$(printf "%.2f" "$(echo "$SEED * 0.01" | bc)")
-OUTDIR="/cluster/home/dwuitc01/CLC-simulations/data/raw/eta_marshall_comp_seasons"
+OUTDIR="/cluster/home/dwuitc01/CLC-simulations/data/raw/eta_marshall_comp_seasons_negCOV"
 MAP_FILE="/cluster/home/dwuitc01/CLC-simulations/data/maps/solid_gray.png"
-SLIM_SCRIPT="/cluster/home/dwuitc01/CLC-simulations/scripts/slim/eta_marshall_comp_seasons.slim"
+SLIM_SCRIPT="/cluster/home/dwuitc01/CLC-simulations/scripts/slim/eta_marshall_comp_seasons_negCOV.slim"
 
 # Make sure output directory exists
 mkdir -p "$OUTDIR"
