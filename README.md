@@ -1,15 +1,24 @@
 # CLC Simulations
 
-This repository contains simulation models, analysis scripts, and manuscript materials for a study on evolutionary lag in species with complex life cycles (CLCs). Code is currently being developed, so expect changes and egregious errors. 
+This repository contains simulation models, analysis scripts, and manuscript materials for a study investigating evolution in species with complex life cycles (CLCs). The codebase is actively under development; expect egregious errors.
 
 ## Repository Structure
 
-- `data/raw/`: Raw output files from SLiM simulations (unmodified).
-- `data/processed/`: Cleaned or summarized data used for analysis or figures.
-- `figs/`: Final figures generated for the manuscript.
-- `scripts/slim/`: SLiM simulation scripts.
-- `scripts/analysis/`: Post-processing and analysis scripts (R or Python).
-- `scripts/slurm/`: cluster scheduling and job management
-- `tex/`: LaTeX manuscript and related files.
-  - `main.tex`: Main LaTeX file for the manuscript.
-  - `bibliography.bib`: Reference library in BibTeX format.
+- **`data/`**
+  - **`raw/`**: Original SLiM simulation outputs (unprocessed).
+  - **`processed/`**: Data processed or summarized for analyses and figure generation.
+
+- **`figs/`**: Go figure.
+
+- **`scripts/`**
+  - **`slim/`**: Simulation scripts for SLiM models.
+  - **`analysis/`**: Post-processing and statistical analysis scripts (R and Python).
+  - **`slurm/`**: SLURM scripts for managing computational cluster jobs.
+
+- **`tex/`**: LaTeX documents for manuscript preparation.
+  - Main manuscript and bibliography files.
+
+## Usage Notes
+
+- Ensure you use the scripts in the specified order: SLiM simulations (`scripts/slim/`), followed by analysis (`scripts/analysis/`).
+- Figures and processed data used in the manuscript are stored separately in clearly labeled directories.
