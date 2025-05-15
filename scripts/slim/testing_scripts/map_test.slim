@@ -1,0 +1,460 @@
+// *******************************
+// INITIALIZE AND PARAMETER SET UP
+// *******************************
+
+initialize() {
+	initializeSLiMModelType("nonWF");
+	initializeSLiMOptions(dimensionality="xy");
+	
+	defaults = Dictionary(
+		// SLURM defined constants		
+		"SEED", 10.0,
+		"OUTDIR", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/scripts/slim/testing_scripts",
+		"SUMMER_MAP_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/summer_grayscale.png", 
+		"WINTER_MAP_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/winter_grayscale.png",
+		
+		// Running parameters
+		"WIDTH", 1000,
+		"HEIGHT", 1000,
+		"N", 2000,
+		"BURNIN", 1000,
+		"RUNTIME", 2000,
+		
+		// genomic parameters
+		"L", 900000,
+		"C", 1e6,
+		"R", 1e-7,
+		"MU", 1e-7,
+		"QTL_MU", c(0.0, 0.0),
+		"QTL_COV", 0.5,
+		
+		// evolution parameters
+		"OMEGA", 8.0,
+		"PLASTICITY_L", 0.1,
+		"PLASTICITY_A", 0.1,
+		"SENSITIVITY_L", 0.5,
+		"SENSITIVITY_A", 0.5,
+		"DELTA", 0.0,
+		
+		// biological parameters
+		"SD", 100,
+		"SX", 20,
+		"SM", 20,
+		"K", 5e-3,
+		"K2", 3e-3,
+		"LIFETIME", 5.0,
+		"MATURATIONTIME", 2,
+		"INITIAL_ADULT_PHENOTYPE", 25.0,
+		"INITIAL_LARVA_PHENOTYPE", 25.0,
+		"FECUN", 100.0,
+		
+		// environmental parameters
+		"WINTER_DIFFERENCE", 5.0,
+		"YEARLY_VAR", 3.0,
+		"SHOCK", 0.1,
+		"PERSISTENCE", 0.9,
+		"LATITUDE_RANGE", c(0, 2)
+		);
+	
+	setupParams(defaults);
+	defineConstant("RHO", FECUN / ((1 + FECUN) * K));
+	defineConstant("QTL_SIGMA", matrix(c(1,QTL_COV,QTL_COV,1), nrow=2));
+	defineGlobal("PARAMS", defaults);
+	//setSeed(SEED);
+	defaults.setValue("ETA", SEED * 0.01);
+	defineConstant("ETA", defaults.getValue("ETA"));
+
+		
+	
+	initializeMutationRate(MU);
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeMutationType("m2", 0.5, "n", 0.0, 0.15);
+	m1.convertToSubstitution = T;
+	m2.convertToSubstitution = F;
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElementType("g2", c(m1,m2), c(1, 0.1));
+	initializeGenomicElement(g1, 0, L-1);
+	initializeGenomicElement(g2, L, L+C);
+	initializeRecombinationRate(c(R, 0.5, R),c(L-1, L, L+C));
+
+
+	
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=3 * SX);
+	i1.setInteractionFunction("n", 1, SX);
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=3 * SM);
+	i2.setInteractionFunction("n", 1, SM);
+	
+	fluc = rep(0.0, RUNTIME);
+	for (i in 1:(RUNTIME-1))
+		fluc[i] = fluc[i-1] * PERSISTENCE + rnorm(1, 0, SHOCK);
+	defineConstant("FLUCTUATIONS", fluc);
+}
+// **********************************************
+// ********* APPLY FIRST() SET UP MAP ***********
+// **********************************************
+
+
+1 first() {
+	sim.addSubpop("p1", asInteger(N));
+	p1.individuals.age = MATURATIONTIME; // starting them off as adults
+	p1.setSpatialBounds(c(0, 0, WIDTH, HEIGHT));
+defineConstant("SUMMER_IMAGE", Image(SUMMER_MAP_FILE));
+defineConstant("WINTER_IMAGE", Image(WINTER_MAP_FILE));
+
+defineGlobal("SUMMER_LATITUDE", SUMMER_IMAGE.floatK * (LATITUDE_RANGE[1]-LATITUDE_RANGE[0]) + LATITUDE_RANGE[0]);
+defineGlobal("WINTER_LATITUDE", WINTER_IMAGE.floatK * (LATITUDE_RANGE[1]-LATITUDE_RANGE[0]) + LATITUDE_RANGE[0]);
+
+defineGlobal("SUMMER_TEMPERATURE", -10 * SUMMER_LATITUDE + 37);
+defineGlobal("WINTER_TEMPERATURE", -10 * WINTER_LATITUDE + 37);
+
+	defineGlobal("season", "winter");  // sets up winter as the starting season
+defineGlobal("SUMMER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", SUMMER_TEMPERATURE, interpolate=T));
+defineGlobal("WINTER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", WINTER_TEMPERATURE, interpolate=T));
+
+	
+	// Set initial season as summer using sim.setValue()
+	sim.setValue("season", "winter");
+	
+	p1.individuals.setSpatialPosition(p1.pointUniform(p1.individualCount));
+	p1.individuals.age = 1;
+	// Initialize mate selection interactions for the first cycle
+	i2.evaluate(p1);
+}
+
+
+// **********************************************
+// ****************** LATE ********************** 
+// **********************************************
+late() {
+	i2.evaluate(p1);
+
+    // Immediately check extinction
+    if (p1.individualCount == 0) {
+        catn("Extinct at tick " + sim.cycle);
+        sim.simulationFinished();
+        return;
+    }
+// Average temperature
+temps = c();
+for (ind in p1.individuals) {
+    temps = c(temps, TEMPMAP.mapValue(ind.spatialPosition));
+}
+avg_temp = mean(temps);
+
+	inds = p1.individuals;
+	
+// Phenotypes	
+	adults = p1.subsetIndividuals(minAge = MATURATIONTIME);
+	adult_phenos = c();
+	for (ind in adults) adult_phenos = c(adult_phenos, ind.getValue("phenotype"));
+	avg_adult_pheno = size(adult_phenos) ? mean(adult_phenos) else 0;
+	
+	
+	larvae = p1.subsetIndividuals(maxAge = 0);
+	larval_phenos = c();
+	for (ind in larvae) larval_phenos = c(larval_phenos, ind.getValue("phenotype"));
+avg_larval_pheno = size(larval_phenos) ? mean(larval_phenos) else 0;
+
+// Fitnesses
+
+adult_fit = c();
+for (ind in adults) adult_fit = c(adult_fit, ind.getValue("fitness"));
+avg_adult_fitness = size(adult_fit) ? mean(adult_fit) else 0;
+
+larval_fit = c();
+for (ind in larvae) larval_fit = c(larval_fit, ind.getValue("fitness"));
+avg_larval_fitness = size(larval_fit) ? mean(larval_fit) else 0;
+
+
+// Adult mismatch
+adult_mismatch_vals = c();
+for (ind in adults){
+    mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
+    adult_mismatch_vals = c(adult_mismatch_vals, mismatch);
+}
+adult_mismatch = size(adult_mismatch_vals) ? mean(adult_mismatch_vals) else 0.0;
+
+// Larval mismatch
+larval_mismatch_vals = c();
+for (ind in larvae){
+    mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
+    larval_mismatch_vals = c(larval_mismatch_vals, mismatch);
+}
+larval_mismatch = size(larval_mismatch_vals) ? mean(larval_mismatch_vals) else 0.0;
+
+
+// Genetic load 
+all_fitness = p1.individuals.getValue("fitness");
+genetic_load = mean(1.0 - all_fitness);
+
+	
+	// prints lag header
+	if (isNULL(sim.getValue("lag_header_written"))) {
+		sim.setValue("lag_header_written", T);
+		writeFile(OUTDIR + "/lag_" + SEED + ".csv",
+			"tick\tobsLagLarvae\tpredLagLarvae\tobsLagAdults\tpredLagAdults\n",
+			append=F
+			);
+	
+	}
+
+	// Only do the lag calculation & write in summer
+	if (sim.getValue("season") != "summer") {
+		return;
+	}
+	
+	
+	// setting up marshall predictions 
+	
+	allInds = p1.individuals;
+	if (size(allInds) > 1) {
+		eL = c(); eA = c();
+		for (ind in allInds) {
+			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
+			eL_val = size(muts) ? sum(muts.getValue("eL")) else INITIAL_LARVA_PHENOTYPE;
+			eA_val = size(muts) ? sum(muts.getValue("eA")) else INITIAL_ADULT_PHENOTYPE;
+			eL = c(eL, eL_val);
+			eA = c(eA, eA_val);
+		}
+		rho = cov(eL, eA) / sqrt(var(eL) * var(eA));
+	} else {
+		rho = 0.0;
+	}
+	
+	GL  = (size(larval_phenos) > 1) ? var(larval_phenos) else 0.0;
+	GA  = (size(adult_phenos) > 1) ? var(adult_phenos)  else 0.0;
+	B_L = SENSITIVITY_L;  b_L = PLASTICITY_L;
+	B_A = SENSITIVITY_A;  b_A = PLASTICITY_A;
+	omega_Lr = OMEGA - DELTA;  omega_Ll = OMEGA + DELTA;
+	omega_Al = OMEGA - DELTA;  omega_Ar = OMEGA + DELTA;
+	gammaL = 1.0 / (omega_Lr^2 + GL);
+	gammaA = 1.0 / (omega_Ar^2 + GA);
+	
+	
+	lagPredL1 = (ETA / (gammaL^2 * (1 - rho^2))) *
+		(((B_L - b_L) / GL) - rho * ((B_A - b_A) / sqrt(GL * GA)));
+	lagPredA1 = (ETA / (gammaA^2 * (1 - rho^2))) *
+		(((B_A - b_A) / GA) - rho * ((B_L - b_L) / sqrt(GL * GA)));
+	
+	lagPredL2 = sqrt(GL) * (omega_Ll - omega_Lr) *
+		sqrt((2 / 3.1415926) * (GL + omega_Lr^2));
+	lagPredA2 = sqrt(GA) * (omega_Al - omega_Ar) *
+		sqrt((2 / 3.1415926) * (GA + omega_Ar^2));
+	
+	lagPredL3 = (GL + omega_Lr * (2 * omega_Lr - omega_Ll));
+	lagPredA3 = (GA + omega_Ar * (2 * omega_Ar - omega_Al));
+	
+	lagPredL = (lagPredL1 + lagPredL2) / lagPredL3;
+	lagPredA = (lagPredA1 + lagPredA2) / lagPredA3;
+	
+	if (size(larval_phenos) > 0 & size(adult_phenos) > 0) {
+		writeFile(OUTDIR + "/lag_" + SEED + ".csv",
+			sim.cycle + "\t" +
+			(avg_temp - mean(larval_phenos)) + "\t" +
+			lagPredL + "\t" +
+			(avg_temp - mean(adult_phenos)) + "\t" +
+			lagPredA + "\n",
+			append=T
+			);
+	
+	}
+
+}
+
+
+
+
+
+
+
+
+// **********************************************
+// *************** APPLY MUTATIONS **************
+// **********************************************
+
+mutation(m2) {
+	effects = rmvnorm(1, QTL_MU, QTL_SIGMA);
+	mut.setValue("eL", effects[0]);
+	mut.setValue("eA", effects[1]);
+	old_effects = sim.getValue("all_effects");
+	sim.setValue("all_effects", rbind(old_effects, effects));
+	return T;
+}
+mutationEffect(m2) {
+	return 1.0;
+}
+
+/// ************************************************ 
+// *************** SET REPRODUCTION *************** 
+// ************************************************
+
+reproduction() {
+	if (sim.cycle % 2 == 0) {  // even ticks = summer
+		mate = i2.drawByStrength(individual, 1);
+		if (mate.size() > 0 & individual.age > MATURATIONTIME) {
+			subpop.addCrossed(individual, mate, count=rpois(1, FECUN));
+		}
+	}
+}
+
+
+
+
+// ************************************************ 
+// ******************** EARLY ********************* 
+// ************************************************
+
+early() {
+	// Flip the season and update temperature maps
+	if (sim.cycle % 2 == 1) {
+		sim.setValue("season", "winter");
+		
+		if (sim.cycle < BURNIN) {
+			defineGlobal("TEMPMAP", WINTER_TEMPMAP);  // original, unchanged
+		} else {
+			years_since_burnin = asInteger((sim.cycle - BURNIN) / 2);
+			delta_temp = years_since_burnin * ETA;
+			updated_winter_temp = WINTER_TEMPERATURE + delta_temp;
+			defineGlobal("TEMPMAP", p1.defineSpatialMap("temperature", "xy", updated_winter_temp, interpolate=T));
+		}
+	} else {
+		sim.setValue("season", "summer");
+		
+		if (sim.cycle < BURNIN) {
+			defineGlobal("TEMPMAP", SUMMER_TEMPMAP);  // original, unchanged
+		} else {
+			years_since_burnin = asInteger((sim.cycle - BURNIN) / 2);
+			delta_temp = years_since_burnin * ETA;
+			updated_summer_temp = SUMMER_TEMPERATURE + delta_temp;
+			defineGlobal("TEMPMAP", p1.defineSpatialMap("temperature", "xy", updated_summer_temp, interpolate=T));
+		}
+	}
+	
+	i1.evaluate(p1);
+	i2.evaluate(p1);
+	
+	adults = p1.subsetIndividuals(minAge = 1);
+	larvae = p1.subsetIndividuals(maxAge = 0);
+	
+	// *** Retrieve current season  ***	
+	current_season = sim.getValue("season");
+	
+	
+	if (current_season == "summer") { // SUMMER CONDITIONS
+		
+		if (larvae.size() > 0) {
+			p1.deviatePositions(larvae, "reprising", INF, "n", SD);
+		}
+		
+		for (ind in adults) {
+			local_temp = TEMPMAP.mapValue(ind.spatialPosition); // Actual environment
+			competition = i1.localPopulationDensity(ind);
+			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
+			genotype_adult = size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
+			mismatch = local_temp - genotype_adult;
+			plasticity_adult = PLASTICITY_A * mismatch; // this needs to be justified - look for existing plasticity terms. 
+			phenotype_adult = genotype_adult + plasticity_adult;
+			ind.setValue("phenotype", phenotype_adult);
+	
+			if (phenotype_adult > local_temp) {
+				summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA + DELTA) * SENSITIVITY_A) /
+					(dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_A));
+			} else {
+				summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA - DELTA) * SENSITIVITY_A) /
+					(dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A));
+			}
+			
+			
+			// produce an offset here to see if it addresses the lagged lag
+			bh = 1/(1+competition/K);
+			ind.fitnessScaling = bh*summer_scaling;
+			ind.setValue("genotype", genotype_adult);
+			ind.setValue("plasticity", plasticity_adult);
+			ind.setValue("fitness", bh * summer_scaling);
+		}
+		
+		for (ind in larvae) {
+			local_temp = TEMPMAP.mapValue(ind.spatialPosition);
+			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
+			competition = i1.localPopulationDensity(ind);
+			genotype_larvae = size(muts) ? sum(muts.getValue("eL")) + INITIAL_LARVA_PHENOTYPE else INITIAL_LARVA_PHENOTYPE;
+			mismatch = TEMPMAP.mapValue(ind.spatialPosition) - genotype_larvae;
+			plasticity_larvae = PLASTICITY_L * mismatch; // this can be negative due to mismatch 
+			phenotype_larvae = genotype_larvae + plasticity_larvae;
+			ind.setValue("phenotype", phenotype_larvae);
+			
+			bh = 1 ; // /(1+competition/K2);
+			ind.setValue("genotype", genotype_larvae);
+			ind.setValue("plasticity", plasticity_larvae);
+			
+			//print(phenotype_larvae);
+			if (phenotype_larvae > local_temp) {
+				ind.fitnessScaling = bh*dnorm(phenotype_larvae, local_temp, (OMEGA + DELTA) * SENSITIVITY_L) /
+					dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_L);
+			} else {
+				ind.fitnessScaling = bh*dnorm(phenotype_larvae, local_temp, (OMEGA - DELTA) * SENSITIVITY_L) /
+					dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_L);
+			}
+			ind.setValue("fitness", ind.fitnessScaling);
+		}
+	
+	} else { // WINTER CONDITIONS
+		
+		for (ind in adults) {
+			local_temp = TEMPMAP.mapValue(ind.spatialPosition);
+			competition = i1.localPopulationDensity(ind);
+			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
+			genotype_adult =  size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
+			mismatch = TEMPMAP.mapValue(ind.spatialPosition) - genotype_adult;
+			plasticity_adult = PLASTICITY_A * mismatch; // this can be negative due to mismatch 
+			phenotype_adult = genotype_adult + plasticity_adult;
+			ind.setValue("phenotype", phenotype_adult);
+			//print(phenotype_adult);
+			if (phenotype_adult > local_temp) {
+				winter_scaling = dnorm(phenotype_adult, local_temp, (OMEGA + DELTA) * SENSITIVITY_A) /
+					(dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_A));
+			} else {
+				winter_scaling = dnorm(phenotype_adult, local_temp, (OMEGA - DELTA) * SENSITIVITY_A) /
+					(dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A));
+			}
+			bh = 1/(1+competition/K);
+			ind.fitnessScaling = bh*winter_scaling;; 
+			ind.setValue("genotype", genotype_adult);
+			ind.setValue("plasticity", plasticity_adult);
+			ind.setValue("fitness", bh * winter_scaling); 
+		
+		}
+	}
+}
+
+
+
+// ************************************************ 
+// *************** FINAL OUTPUT ******************* 
+// ************************************************
+BURNIN + RUNTIME late() {
+	sim.simulationFinished();
+}
+function (void) setupParams(object<Dictionary>$ defaults) {
+	if (!exists("PARAMFILE")) defineConstant("PARAMFILE", "./params.json");
+	if (!exists("OUTDIR"))   defineConstant("OUTDIR", ".");
+	defaults.addKeysAndValuesFrom(Dictionary("PARAMFILE", PARAMFILE, "OUTDIR", OUTDIR));
+	if (fileExists(PARAMFILE)) {
+		defaults.addKeysAndValuesFrom(Dictionary(readFile(PARAMFILE)));
+		defaults.setValue("READ_FROM_PARAMFILE", PARAMFILE);
+	}
+	defaults.setValue("OUTBASE", OUTDIR + "/out_" + defaults.getValue("SEED"));
+	defaults.setValue("OUTPATH", OUTDIR + "/out_" + defaults.getValue("SEED") + ".trees");
+	
+	// materialize into Eidos constants
+	for (key in defaults.allKeys) {
+		if (!exists(key)) defineConstant(key, defaults.getValue(key));
+		else              defaults.setValue(key, executeLambda(key + ";"));
+	}
+	
+	// print them
+	catn("===========================");
+	catn("Model constants: " + defaults.serialize("pretty"));
+	catn("===========================");
+
+}
