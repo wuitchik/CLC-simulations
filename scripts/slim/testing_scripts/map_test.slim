@@ -12,11 +12,12 @@ initialize() {
 		"OUTDIR", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/scripts/slim/testing_scripts",
 		"SUMMER_MAP_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/summer_grayscale.png",
 		"WINTER_MAP_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/winter_grayscale.png",
+		"LAND_MASK_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/land_mask.png",
 		
 		// Running parameters
 		"WIDTH", 1000,
 		"HEIGHT", 1000,
-		"N", 2000,
+		"N", 5000,
 		"BURNIN", 1000,
 		"RUNTIME", 2000,
 		
@@ -37,15 +38,15 @@ initialize() {
 		"DELTA", 0.0,
 		
 		// biological parameters
-		"SD", 500,
-		"SX", 10,
-		"SM", 10,
+		"SD", 1000,
+		"SX", 5,
+		"SM", 5,
 		"K", 5e-1,
 		"K2", 3e-3,
 		"LIFETIME", 5.0,
 		"MATURATIONTIME", 2,
-		"INITIAL_ADULT_PHENOTYPE", 20.0,
-		"INITIAL_LARVA_PHENOTYPE", 20.0,
+		"INITIAL_ADULT_PHENOTYPE", 19.0,
+		"INITIAL_LARVA_PHENOTYPE", 19.0,
 		"FECUN", 5.0,
 		
 		// environmental parameters
@@ -100,7 +101,11 @@ initialize() {
 	p1.setSpatialBounds(c(0, 0, WIDTH, HEIGHT));
 	defineConstant("SUMMER_IMAGE", Image(SUMMER_MAP_FILE));
 	defineConstant("WINTER_IMAGE", Image(WINTER_MAP_FILE));
-	
+defineConstant("LAND_IMAGE", Image(LAND_MASK_FILE));
+defineGlobal("WATER", LAND_IMAGE.floatK);  // 1 = water, 0 = land
+defineGlobal("WATER_MAP", p1.defineSpatialMap("water", "xy", WATER, valueRange = c(0,1), colors = c("darkolivegreen", "black")));
+
+
 defineGlobal("SUMMER_LATITUDE", (1 - SUMMER_IMAGE.floatK) * (LATITUDE_RANGE[1]-LATITUDE_RANGE[0]) + LATITUDE_RANGE[0]);
 defineGlobal("WINTER_LATITUDE", (1 - WINTER_IMAGE.floatK) * (LATITUDE_RANGE[1]-LATITUDE_RANGE[0]) + LATITUDE_RANGE[0]);
 
@@ -111,6 +116,7 @@ defineGlobal("WINTER_LATITUDE", (1 - WINTER_IMAGE.floatK) * (LATITUDE_RANGE[1]-L
 	defineGlobal("season", "winter");  // sets up winter as the starting season
 	defineGlobal("SUMMER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", SUMMER_TEMPERATURE, interpolate=T));
 	defineGlobal("WINTER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", WINTER_TEMPERATURE, interpolate=T));
+
 	
 	
 	// Set initial season as summer using sim.setValue()
@@ -119,6 +125,7 @@ defineGlobal("WINTER_LATITUDE", (1 - WINTER_IMAGE.floatK) * (LATITUDE_RANGE[1]-L
 	p1.individuals.setSpatialPosition(p1.pointUniform(p1.individualCount));
 	p1.individuals.age = 1;
 	// Initialize mate selection interactions for the first cycle
+	i1.evaluate(p1);
 	i2.evaluate(p1);
 }
 
@@ -185,24 +192,20 @@ late() {
 	}
 	larval_mismatch = size(larval_mismatch_vals) ? mean(larval_mismatch_vals) else 0.0;
 	
-	
-	// Genetic load 
-	all_fitness = p1.individuals.getValue("fitness");
-	genetic_load = mean(1.0 - all_fitness);
-		
+
 		
 	// console printing 
 	if (isNULL(sim.getValue("console_header"))) {
 		sim.setValue("console_header", T);
 		catn("--------------------------------------------------------");
-		catn("Tick | AvgTemp | AvgAdult | AvgLarval ");
+		catn("Tick | Season | AvgTemp | AvgAPheno | AvgLPheno ");
 		catn("--------------------------------------------------------");
 	}
 	catn(sim.cycle + " | " +
 		sim.getValue("season") + " | " +
 		avg_temp   + " | " +
 		avg_adult_pheno  + " | " +
-		avg_larval_pheno + " | ");
+		avg_larval_pheno + " | " );
 
 	
 	
@@ -281,12 +284,6 @@ late() {
 }
 
 
-
-
-
-
-
-
 // **********************************************
 // *************** APPLY MUTATIONS **************
 // **********************************************
@@ -315,8 +312,6 @@ reproduction() {
 		}
 	}
 }
-
-
 
 
 // ************************************************ 
@@ -359,91 +354,106 @@ early() {
 	
 	
 	if (current_season == "summer") { // SUMMER CONDITIONS
-		
-		if (larvae.size() > 0) {
+			if (larvae.size() > 0) {
 			p1.deviatePositions(larvae, "reprising", INF, "n", SD);
 		}
-		
-		for (ind in adults) {
-			local_temp = TEMPMAP.mapValue(ind.spatialPosition); // Actual environment
-			competition = i1.localPopulationDensity(ind);
-			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
-			genotype_adult = size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
-			mismatch = local_temp - genotype_adult;
-			plasticity_adult = PLASTICITY_A * mismatch; // this needs to be justified - look for existing plasticity terms. 
-			phenotype_adult = genotype_adult + plasticity_adult;
-			ind.setValue("phenotype", phenotype_adult);
-			
-			if (phenotype_adult > local_temp) {
-				summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA + DELTA) * SENSITIVITY_A) /
-					(dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_A));
-			} else {
-				summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA - DELTA) * SENSITIVITY_A) /
-					(dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A));
-			}
-			
-			bh = 1/(1+competition/K);
-			ind.fitnessScaling = bh*summer_scaling;
-			ind.setValue("genotype", genotype_adult);
-			ind.setValue("plasticity", plasticity_adult);
-			ind.setValue("fitness", bh * summer_scaling);
-		}
-		
-		for (ind in larvae) {
-			local_temp = TEMPMAP.mapValue(ind.spatialPosition);
-			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
-			competition = i1.localPopulationDensity(ind);
-			genotype_larvae = size(muts) ? sum(muts.getValue("eL")) + INITIAL_LARVA_PHENOTYPE else INITIAL_LARVA_PHENOTYPE;
-			mismatch = TEMPMAP.mapValue(ind.spatialPosition) - genotype_larvae;
-			plasticity_larvae = PLASTICITY_L * mismatch; // this can be negative due to mismatch 
-			phenotype_larvae = genotype_larvae + plasticity_larvae;
-			ind.setValue("phenotype", phenotype_larvae);
-			
-			bh = 1 ; // /(1+competition/K2);
-			ind.setValue("genotype", genotype_larvae);
-			ind.setValue("plasticity", plasticity_larvae);
-			
-			//print(phenotype_larvae);
-			if (phenotype_larvae > local_temp) {
-				ind.fitnessScaling = bh*dnorm(phenotype_larvae, local_temp, (OMEGA + DELTA) * SENSITIVITY_L) /
-					dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_L);
-			} else {
-				ind.fitnessScaling = bh*dnorm(phenotype_larvae, local_temp, (OMEGA - DELTA) * SENSITIVITY_L) /
-					dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_L);
-			}
-			ind.setValue("fitness", ind.fitnessScaling);
-		}
 	
-	} else { // WINTER CONDITIONS
-		
+toKillAdults = c();
+for (ind in adults) {
+    water_val = WATER_MAP.mapValue(ind.spatialPosition);
+    if (water_val < 0.5) {
+        toKillAdults = c(toKillAdults, ind);
+    } else {
+        local_temp = TEMPMAP.mapValue(ind.spatialPosition);
+        competition = i1.localPopulationDensity(ind);
+        muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
+        genotype_adult = size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
+        mismatch = local_temp - genotype_adult;
+        plasticity_adult = PLASTICITY_A * mismatch;
+        phenotype_adult = genotype_adult + plasticity_adult;
+        ind.setValue("phenotype", phenotype_adult);
+
+        if (phenotype_adult > local_temp) {
+            summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA + DELTA) * SENSITIVITY_A) /
+                             dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_A);
+        } else {
+            summer_scaling = dnorm(phenotype_adult, local_temp, (OMEGA - DELTA) * SENSITIVITY_A) /
+                             dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A);
+        }
+
+        bh = 1 / (1 + competition / K);
+        ind.fitnessScaling = bh * summer_scaling;
+        ind.setValue("genotype", genotype_adult);
+        ind.setValue("plasticity", plasticity_adult);
+        ind.setValue("fitness", bh * summer_scaling);
+    }
+}
+if (size(toKillAdults) > 0) {
+    sim.killIndividuals(toKillAdults);
+}
+
+toKillLarvae = c();
+for (ind in larvae) {
+    water_val = WATER_MAP.mapValue(ind.spatialPosition);
+    if (water_val < 0.5) {
+        toKillLarvae = c(toKillLarvae, ind);
+    } else {
+        local_temp = TEMPMAP.mapValue(ind.spatialPosition);
+        competition = i1.localPopulationDensity(ind);
+        muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
+        genotype_larvae = size(muts) ? sum(muts.getValue("eL")) + INITIAL_LARVA_PHENOTYPE else INITIAL_LARVA_PHENOTYPE;
+        mismatch = local_temp - genotype_larvae;
+        plasticity_larvae = PLASTICITY_L * mismatch;
+        phenotype_larvae = genotype_larvae + plasticity_larvae;
+        ind.setValue("phenotype", phenotype_larvae);
+
+        if (phenotype_larvae > local_temp) {
+            fitness = dnorm(phenotype_larvae, local_temp, (OMEGA + DELTA) * SENSITIVITY_L) /
+                      dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_L);
+        } else {
+            fitness = dnorm(phenotype_larvae, local_temp, (OMEGA - DELTA) * SENSITIVITY_L) /
+                      dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_L);
+        }
+
+        bh = 1;  // or bh = 1 / (1 + competition / K2) if you want density-dependence
+        ind.fitnessScaling = bh * fitness;
+        ind.setValue("genotype", genotype_larvae);
+        ind.setValue("plasticity", plasticity_larvae);
+        ind.setValue("fitness", bh * fitness);
+    }
+}
+if (size(toKillLarvae) > 0) {
+    sim.killIndividuals(toKillLarvae);
+}
+}
+	else { // WINTER CONDITIONS
 		for (ind in adults) {
 			local_temp = TEMPMAP.mapValue(ind.spatialPosition);
 			competition = i1.localPopulationDensity(ind);
 			muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
 			genotype_adult =  size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
 			mismatch = TEMPMAP.mapValue(ind.spatialPosition) - genotype_adult;
-			plasticity_adult = PLASTICITY_A * mismatch; // this can be negative due to mismatch 
+			plasticity_adult = PLASTICITY_A * mismatch;
 			phenotype_adult = genotype_adult + plasticity_adult;
 			ind.setValue("phenotype", phenotype_adult);
-			//print(phenotype_adult);
+
 			if (phenotype_adult > local_temp) {
 				winter_scaling = dnorm(phenotype_adult, local_temp, (OMEGA + DELTA) * SENSITIVITY_A) /
-					(dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_A));
+				                 dnorm(0.0, 0.0, (OMEGA + DELTA) * SENSITIVITY_A);
 			} else {
 				winter_scaling = dnorm(phenotype_adult, local_temp, (OMEGA - DELTA) * SENSITIVITY_A) /
-					(dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A));
+				                 dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_A);
 			}
-			bh = 1/(1+competition/K);
-			ind.fitnessScaling = bh*winter_scaling;;
+
+			bh = 1/(1 + competition / K);
+			ind.fitnessScaling = bh * winter_scaling;
 			ind.setValue("genotype", genotype_adult);
 			ind.setValue("plasticity", plasticity_adult);
 			ind.setValue("fitness", bh * winter_scaling);
-		
 		}
 	}
+
 }
-
-
 
 // ************************************************ 
 // *************** FINAL OUTPUT ******************* 
