@@ -1,130 +1,141 @@
-// *******************************
-// INITIALIZE AND PARAMETER SET UP
-// *******************************
+// ****************************************************************************************************************************
+// *********************************		INITIALIZE AND PARAMETER SET UP		 ************************************************
+// ****************************************************************************************************************************
 
 initialize() {
 	initializeSLiMModelType("nonWF");
 	initializeSLiMOptions(dimensionality="xy");
-	
+
+	// Define model defaults and parameters
 	defaults = Dictionary(
-		// SLURM defined constants		
+
+		// ---- SLURM defined constants ----
 		"SEED", 5.0,
 		"OUTDIR", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/scripts/slim/testing_scripts",
 		"SUMMER_MAP_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/summer_grayscale.png",
 		"WINTER_MAP_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/winter_grayscale.png",
-		"LAND_MASK_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/land_mask.png",
-		
-		// Running parameters
+		"LAND_MASK_FILE",  "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/land_mask.png",
+
+		// ---- Simulation parameters ----
 		"WIDTH", 1000,
 		"HEIGHT", 1000,
 		"N", 5000,
 		"BURNIN", 1000,
 		"RUNTIME", 2000,
-		
-		// genomic parameters
+
+		// ---- Genomic architecture ----
 		"L", 900000,
 		"C", 1e6,
 		"R", 1e-7,
 		"MU", 1e-7,
 		"QTL_MU", c(0.0, 0.0),
-		"QTL_COV", 0.5,
-		
-		// evolution parameters
-		"OMEGA", 8.0,
+		"QTL_COV", -0.5,
+
+		// ---- Evolutionary parameters ----
+		"OMEGA", 8.5,
 		"PLASTICITY_L", 0.1,
 		"PLASTICITY_A", 0.1,
 		"SENSITIVITY_L", 0.5,
 		"SENSITIVITY_A", 0.5,
-		"DELTA", 0.0,
-		
-		// biological parameters
-		"SD", 1000,
+		"DELTA", 1.0,
+
+		// ---- Demographic and biological parameters ----
+		"SD", 100,
 		"SX", 5,
 		"SM", 5,
 		"K", 5e-1,
 		"K2", 3e-3,
 		"LIFETIME", 5.0,
 		"MATURATIONTIME", 2,
-		"INITIAL_ADULT_PHENOTYPE", 19.0,
-		"INITIAL_LARVA_PHENOTYPE", 19.0,
+		"INITIAL_ADULT_PHENOTYPE", 22.0,
+		"INITIAL_LARVA_PHENOTYPE", 21.0,
 		"FECUN", 5.0,
-		
-		// environmental parameters
+
+		// ---- Environmental dynamics ----
 		"WINTER_DIFFERENCE", 5.0,
 		"YEARLY_VAR", 3.0,
 		"SHOCK", 0.1,
 		"PERSISTENCE", 0.9,
 		"LATITUDE_RANGE", c(0, 3)
-		);
-	
+	);
+
+	// Apply defaults, derive constants, and expose globally
 	setupParams(defaults);
 	defineConstant("RHO", FECUN / ((1 + FECUN) * K));
-	defineConstant("QTL_SIGMA", matrix(c(1,QTL_COV,QTL_COV,1), nrow=2));
+	defineConstant("QTL_SIGMA", matrix(c(1, QTL_COV, QTL_COV, 1), nrow=2));
 	defineGlobal("PARAMS", defaults);
-	//setSeed(SEED);
+
+	// Define environmental trend (ETA) and make constant
 	defaults.setValue("ETA", SEED * 0.01);
 	defineConstant("ETA", defaults.getValue("ETA"));
-	
-	
-	
+
+	// ---- Initialize mutation types and genome structure ----
 	initializeMutationRate(MU);
-	initializeMutationType("m1", 0.5, "f", 0.0);
-	initializeMutationType("m2", 0.5, "n", 0.0, 0.15);
+	initializeMutationType("m1", 0.5, "f", 0.0);            // neutral fixed
+	initializeMutationType("m2", 0.5, "n", 0.0, 0.15);       // QTL mutations
 	m1.convertToSubstitution = T;
 	m2.convertToSubstitution = F;
+
 	initializeGenomicElementType("g1", m1, 1.0);
-	initializeGenomicElementType("g2", c(m1,m2), c(1, 0.1));
-	initializeGenomicElement(g1, 0, L-1);
-	initializeGenomicElement(g2, L, L+C);
-	initializeRecombinationRate(c(R, 0.5, R),c(L-1, L, L+C));
-	
-	
-	
+	initializeGenomicElementType("g2", c(m1, m2), c(1, 0.1));
+	initializeGenomicElement(g1, 0, L - 1);
+	initializeGenomicElement(g2, L, L + C);
+	initializeRecombinationRate(c(R, 0.5, R), c(L - 1, L, L + C));
+
+	// ---- Define interaction types for competition/mating ----
 	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=3 * SX);
 	i1.setInteractionFunction("n", 1, SX);
+
 	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=3 * SM);
 	i2.setInteractionFunction("n", 1, SM);
-	
+
+	// ---- Generate autocorrelated stochastic fluctuations ----
 	fluc = rep(0.0, RUNTIME);
-	for (i in 1:(RUNTIME-1))
-		fluc[i] = fluc[i-1] * PERSISTENCE + rnorm(1, 0, SHOCK);
+	for (i in 1:(RUNTIME - 1))
+		fluc[i] = fluc[i - 1] * PERSISTENCE + rnorm(1, 0, SHOCK);
 	defineConstant("FLUCTUATIONS", fluc);
 }
+
+
+
 // **********************************************
 // ********* APPLY FIRST() SET UP MAP ***********
 // **********************************************
 
-
 1 first() {
-	sim.addSubpop("p1", asInteger(N));
-	p1.individuals.age = MATURATIONTIME; // starting them off as adults
-	p1.setSpatialBounds(c(0, 0, WIDTH, HEIGHT));
+	sim.addSubpop("p1", asInteger(N));                            // initialize subpopulation
+	p1.individuals.age = MATURATIONTIME;                          // set all individuals as adults
+	p1.setSpatialBounds(c(0, 0, WIDTH, HEIGHT));                  // spatial dimensions
+
+	// ---- Load spatial maps as image data ----
 	defineConstant("SUMMER_IMAGE", Image(SUMMER_MAP_FILE));
 	defineConstant("WINTER_IMAGE", Image(WINTER_MAP_FILE));
-defineConstant("LAND_IMAGE", Image(LAND_MASK_FILE));
-defineGlobal("WATER", LAND_IMAGE.floatK);  // 1 = water, 0 = land
-defineGlobal("WATER_MAP", p1.defineSpatialMap("water", "xy", WATER, valueRange = c(0,1), colors = c("darkolivegreen", "black")));
+	defineConstant("LAND_IMAGE", Image(LAND_MASK_FILE));
 
+	// ---- Define land/water mask and spatial map ----
+	defineGlobal("WATER", LAND_IMAGE.floatK);                     // 1 = water, 0 = land
+	defineGlobal("WATER_MAP", p1.defineSpatialMap("water", "xy", WATER,
+		valueRange = c(0, 1), colors = c("grey55", "white")));
 
-defineGlobal("SUMMER_LATITUDE", (1 - SUMMER_IMAGE.floatK) * (LATITUDE_RANGE[1]-LATITUDE_RANGE[0]) + LATITUDE_RANGE[0]);
-defineGlobal("WINTER_LATITUDE", (1 - WINTER_IMAGE.floatK) * (LATITUDE_RANGE[1]-LATITUDE_RANGE[0]) + LATITUDE_RANGE[0]);
+	// ---- Derive latitude-based temperature predictors ----
+	defineGlobal("SUMMER_LATITUDE", (1 - SUMMER_IMAGE.floatK) * (LATITUDE_RANGE[1] - LATITUDE_RANGE[0]) + LATITUDE_RANGE[0]);
+	defineGlobal("WINTER_LATITUDE", (1 - WINTER_IMAGE.floatK) * (LATITUDE_RANGE[1] - LATITUDE_RANGE[0]) + LATITUDE_RANGE[0]);
 
-	
 	defineGlobal("SUMMER_TEMPERATURE", -10 * SUMMER_LATITUDE + 37);
 	defineGlobal("WINTER_TEMPERATURE", -10 * WINTER_LATITUDE + 37);
-	
-	defineGlobal("season", "winter");  // sets up winter as the starting season
+
+	// ---- Assign initial temperature maps and seasonal state ----
+	defineGlobal("season", "winter");                             // start in winter
 	defineGlobal("SUMMER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", SUMMER_TEMPERATURE, interpolate=T));
 	defineGlobal("WINTER_TEMPMAP", p1.defineSpatialMap("temperature", "xy", WINTER_TEMPERATURE, interpolate=T));
 
-	
-	
-	// Set initial season as summer using sim.setValue()
-	sim.setValue("season", "winter");
-	
+	sim.setValue("season", "winter");                             // used for logic control later
+
+	// ---- Initialize spatial locations and ages ----
 	p1.individuals.setSpatialPosition(p1.pointUniform(p1.individualCount));
 	p1.individuals.age = 1;
-	// Initialize mate selection interactions for the first cycle
+
+	// ---- Precompute interaction networks ----
 	i1.evaluate(p1);
 	i2.evaluate(p1);
 }
@@ -134,100 +145,92 @@ defineGlobal("WINTER_LATITUDE", (1 - WINTER_IMAGE.floatK) * (LATITUDE_RANGE[1]-L
 // ****************** LATE ********************** 
 // **********************************************
 late() {
-	i2.evaluate(p1);
+	i2.evaluate(p1);  // Re-evaluate mating interaction network
 	
-	// Immediately check extinction
+	// Exit early if population is extinct
 	if (p1.individualCount == 0) {
 		catn("Extinct at tick " + sim.cycle);
 		sim.simulationFinished();
 		return;
 	}
 
-	
-	// Average temperature
+	// Calculate average temperature across all individuals
 	temps = c();
-	for (ind in p1.individuals) {
+	for (ind in p1.individuals)
 		temps = c(temps, TEMPMAP.mapValue(ind.spatialPosition));
-	}
 	avg_temp = mean(temps);
 	
-	inds = p1.individuals;
-	
-	// Phenotypes	
+	// Subset individuals into adults and larvae
 	adults = p1.subsetIndividuals(minAge = MATURATIONTIME);
+	larvae = p1.subsetIndividuals(maxAge = 0);
+	
+	// Compute adult phenotypes
 	adult_phenos = c();
-	for (ind in adults) adult_phenos = c(adult_phenos, ind.getValue("phenotype"));
+	for (ind in adults)
+		adult_phenos = c(adult_phenos, ind.getValue("phenotype"));
 	avg_adult_pheno = size(adult_phenos) ? mean(adult_phenos) else 0;
 	
-	
-	larvae = p1.subsetIndividuals(maxAge = 0);
+	// Compute larval phenotypes
 	larval_phenos = c();
-	for (ind in larvae) larval_phenos = c(larval_phenos, ind.getValue("phenotype"));
+	for (ind in larvae)
+		larval_phenos = c(larval_phenos, ind.getValue("phenotype"));
 	avg_larval_pheno = size(larval_phenos) ? mean(larval_phenos) else 0;
-	
-	// Fitnesses
-	
+
+	// Compute adult fitness
 	adult_fit = c();
-	for (ind in adults) adult_fit = c(adult_fit, ind.getValue("fitness"));
+	for (ind in adults)
+		adult_fit = c(adult_fit, ind.getValue("fitness"));
 	avg_adult_fitness = size(adult_fit) ? mean(adult_fit) else 0;
 	
+	// Compute larval fitness
 	larval_fit = c();
-	for (ind in larvae) larval_fit = c(larval_fit, ind.getValue("fitness"));
+	for (ind in larvae)
+		larval_fit = c(larval_fit, ind.getValue("fitness"));
 	avg_larval_fitness = size(larval_fit) ? mean(larval_fit) else 0;
-	
-	
-	// Adult mismatch
+
+	// Compute phenotype–environment mismatch for adults
 	adult_mismatch_vals = c();
-	for (ind in adults){
-		mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
-		adult_mismatch_vals = c(adult_mismatch_vals, mismatch);
-	}
+	for (ind in adults)
+		adult_mismatch_vals = c(adult_mismatch_vals, TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype"));
 	adult_mismatch = size(adult_mismatch_vals) ? mean(adult_mismatch_vals) else 0.0;
 	
-	// Larval mismatch
+	// Compute phenotype–environment mismatch for larvae
 	larval_mismatch_vals = c();
-	for (ind in larvae){
-		mismatch = TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype");
-		larval_mismatch_vals = c(larval_mismatch_vals, mismatch);
-	}
+	for (ind in larvae)
+		larval_mismatch_vals = c(larval_mismatch_vals, TEMPMAP.mapValue(ind.spatialPosition) - ind.getValue("phenotype"));
 	larval_mismatch = size(larval_mismatch_vals) ? mean(larval_mismatch_vals) else 0.0;
-	
 
-		
-	// console printing 
+	// Print console output header (only once)
 	if (isNULL(sim.getValue("console_header"))) {
 		sim.setValue("console_header", T);
 		catn("--------------------------------------------------------");
 		catn("Tick | Season | AvgTemp | AvgAPheno | AvgLPheno ");
 		catn("--------------------------------------------------------");
 	}
+	
+	// Print summary to console
 	catn(sim.cycle + " | " +
-		sim.getValue("season") + " | " +
-		avg_temp   + " | " +
-		avg_adult_pheno  + " | " +
-		avg_larval_pheno + " | " );
+	     sim.getValue("season") + " | " +
+	     avg_temp   + " | " +
+	     avg_adult_pheno  + " | " +
+	     avg_larval_pheno + " | ");
 
-	
-	
-	// prints lag header
+	// Create lag output file header (only once)
 	if (isNULL(sim.getValue("lag_header_written"))) {
 		sim.setValue("lag_header_written", T);
 		writeFile(OUTDIR + "/lag_" + SEED + ".csv",
-			"tick\tobsLagLarvae\tpredLagLarvae\tobsLagAdults\tpredLagAdults\n",
-			append=F
-			);
-	
+		          "tick\tobsLagLarvae\tpredLagLarvae\tobsLagAdults\tpredLagAdults\n",
+		          append=F);
 	}
-	
-	
-	// Only do the lag calculation & write in summer
-	if (sim.getValue("season") != "summer") {
+
+	// Only perform lag prediction calculations in summer
+	if (sim.getValue("season") != "summer")
 		return;
-	}
-	
-	
-	// setting up marshall predictions 
-	
+
+	// ------------------------------
+	// Marshall-style Lag Predictions
+	// ------------------------------
+
 	allInds = p1.individuals;
 	if (size(allInds) > 1) {
 		eL = c(); eA = c();
@@ -242,46 +245,50 @@ late() {
 	} else {
 		rho = 0.0;
 	}
-	
-	GL  = (size(larval_phenos) > 1) ? var(larval_phenos) else 0.0;
-	GA  = (size(adult_phenos) > 1) ? var(adult_phenos)  else 0.0;
+
+	// Genetic variances
+	GL = (size(larval_phenos) > 1) ? var(larval_phenos) else 0.0;
+	GA = (size(adult_phenos) > 1) ? var(adult_phenos)  else 0.0;
+
+	// Selection and plasticity parameters
 	B_L = SENSITIVITY_L;  b_L = PLASTICITY_L;
 	B_A = SENSITIVITY_A;  b_A = PLASTICITY_A;
+
+	// Asymmetric optima
 	omega_Lr = OMEGA - DELTA;  omega_Ll = OMEGA + DELTA;
 	omega_Al = OMEGA - DELTA;  omega_Ar = OMEGA + DELTA;
+
+	// Inverse stabilizing selection strength
 	gammaL = 1.0 / (omega_Lr^2 + GL);
 	gammaA = 1.0 / (omega_Ar^2 + GA);
-	
-	
+
+	// Lag components
 	lagPredL1 = (ETA / (gammaL^2 * (1 - rho^2))) *
-		(((B_L - b_L) / GL) - rho * ((B_A - b_A) / sqrt(GL * GA)));
+	            (((B_L - b_L) / GL) - rho * ((B_A - b_A) / sqrt(GL * GA)));
 	lagPredA1 = (ETA / (gammaA^2 * (1 - rho^2))) *
-		(((B_A - b_A) / GA) - rho * ((B_L - b_L) / sqrt(GL * GA)));
-	
-	lagPredL2 = sqrt(GL) * (omega_Ll - omega_Lr) *
-		sqrt((2 / 3.1415926) * (GL + omega_Lr^2));
-	lagPredA2 = sqrt(GA) * (omega_Al - omega_Ar) *
-		sqrt((2 / 3.1415926) * (GA + omega_Ar^2));
-	
+	            (((B_A - b_A) / GA) - rho * ((B_L - b_L) / sqrt(GL * GA)));
+
+	lagPredL2 = sqrt(GL) * (omega_Ll - omega_Lr) * sqrt((2 / 3.1415926) * (GL + omega_Lr^2));
+	lagPredA2 = sqrt(GA) * (omega_Al - omega_Ar) * sqrt((2 / 3.1415926) * (GA + omega_Ar^2));
+
 	lagPredL3 = (GL + omega_Lr * (2 * omega_Lr - omega_Ll));
 	lagPredA3 = (GA + omega_Ar * (2 * omega_Ar - omega_Al));
-	
+
 	lagPredL = (lagPredL1 + lagPredL2) / lagPredL3;
 	lagPredA = (lagPredA1 + lagPredA2) / lagPredA3;
-	
+
+	// Write output if both phenotypes are available
 	if (size(larval_phenos) > 0 & size(adult_phenos) > 0) {
 		writeFile(OUTDIR + "/lag_" + SEED + ".csv",
-			sim.cycle + "\t" +
-			(avg_temp - mean(larval_phenos)) + "\t" +
-			lagPredL + "\t" +
-			(avg_temp - mean(adult_phenos)) + "\t" +
-			lagPredA + "\n",
-			append=T
-			);
-	
+		          sim.cycle + "\t" +
+		          (avg_temp - mean(larval_phenos)) + "\t" +
+		          lagPredL + "\t" +
+		          (avg_temp - mean(adult_phenos)) + "\t" +
+		          lagPredA + "\n",
+		          append=T);
 	}
-
 }
+
 
 
 // **********************************************
@@ -305,13 +312,16 @@ mutationEffect(m2) {
 // ************************************************
 
 reproduction() {
-	if (sim.cycle % 2 == 0) {  // even ticks = summer
-		mate = i2.drawByStrength(individual, 1);
+	// Reproduction only occurs during summer (even ticks)
+	if (sim.cycle % 2 == 0) {
+		mate = i2.drawByStrength(individual, 1);  // choose a mate based on interaction strength
 		if (mate.size() > 0 & individual.age > MATURATIONTIME) {
+			// Generate Poisson-distributed number of offspring
 			subpop.addCrossed(individual, mate, count=rpois(1, FECUN));
 		}
 	}
 }
+
 
 
 // ************************************************ 
