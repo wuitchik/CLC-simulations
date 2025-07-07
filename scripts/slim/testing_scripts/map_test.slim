@@ -4,13 +4,15 @@
 
 initialize() {
 	initializeSLiMModelType("nonWF");
-	initializeSLiMOptions(dimensionality="xy");
+	initializeSLiMOptions(keepPedigrees = T, dimensionality="xy");
+	initializeTreeSeq();
+
 
 	// Define model defaults and parameters
 	defaults = Dictionary(
 
 		// ---- SLURM defined constants ----
-		"SEED", 5.0,
+		"SEED", 0.0,
 		"OUTDIR", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/scripts/slim/testing_scripts",
 		"SUMMER_MAP_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/summer_grayscale.png",
 		"WINTER_MAP_FILE", "/Users/danielwuitchik/Documents/Experiments/Crepidula_tufts/Github/CLC-simulations/data/maps/winter_grayscale.png",
@@ -19,10 +21,11 @@ initialize() {
 		// ---- Simulation parameters ----
 		"WIDTH", 1000,
 		"HEIGHT", 1000,
-		"N", 5000,
-		"BURNIN", 1000,
-		"RUNTIME", 2000,
-
+		"N", 50000,
+		"BURNIN", 100,
+		"RUNTIME", 1000,
+		"SPATIAL_OUTPUT_INTERVAL", 200,
+		
 		// ---- Genomic architecture ----
 		"L", 900000,
 		"C", 1e6,
@@ -32,23 +35,23 @@ initialize() {
 		"QTL_COV", -0.5,
 
 		// ---- Evolutionary parameters ----
-		"OMEGA", 8.5,
-		"PLASTICITY_L", 0.1,
-		"PLASTICITY_A", 0.1,
+		"OMEGA", 5.0,
+		"PLASTICITY_L", 0.05,
+		"PLASTICITY_A", 0.05,
 		"SENSITIVITY_L", 0.5,
 		"SENSITIVITY_A", 0.5,
-		"DELTA", 1.0,
+		"DELTA", 2.0,
 
 		// ---- Demographic and biological parameters ----
 		"SD", 100,
-		"SX", 5,
-		"SM", 5,
-		"K", 5e-1,
+		"SX", 3,
+		"SM", 3,
+		"K", 1,
 		"K2", 3e-3,
-		"LIFETIME", 5.0,
+		"LIFETIME", 7.0,
 		"MATURATIONTIME", 2,
-		"INITIAL_ADULT_PHENOTYPE", 22.0,
-		"INITIAL_LARVA_PHENOTYPE", 21.0,
+		"INITIAL_ADULT_PHENOTYPE", 20.0,
+		"INITIAL_LARVA_PHENOTYPE", 20.0,
 		"FECUN", 5.0,
 
 		// ---- Environmental dynamics ----
@@ -215,6 +218,39 @@ late() {
 	     avg_adult_pheno  + " | " +
 	     avg_larval_pheno + " | ");
 
+// Output spatial coordinates periodically for Fst analysis, distinguishing adults and larvae
+
+if (sim.cycle % SPATIAL_OUTPUT_INTERVAL == 0) {
+    filename = OUTDIR + "/spatial_" + SEED + ".csv";
+
+    if (!fileExists(filename)) {
+        writeFile(filename, "tick,ind_index,stage,x,y,phenotype,genotype_L,genotype_A\n", append=F);
+    }
+
+    positions_output = "";
+    individuals = p1.individuals;
+
+    for (i in seqAlong(individuals)) {
+        ind = individuals[i];
+        pos = ind.spatialPosition;
+        stage = (ind.age >= MATURATIONTIME) ? "adult" else "larvae";
+        phenotype = ind.getValue("phenotype");
+
+        muts = c(ind.haploidGenome1.mutationsOfType(m2), ind.haploidGenome2.mutationsOfType(m2));
+        genotype_L = size(muts) ? sum(muts.getValue("eL")) + INITIAL_LARVA_PHENOTYPE else INITIAL_LARVA_PHENOTYPE;
+        genotype_A = size(muts) ? sum(muts.getValue("eA")) + INITIAL_ADULT_PHENOTYPE else INITIAL_ADULT_PHENOTYPE;
+
+        positions_output = positions_output + sim.cycle + "," + i + "," + stage + "," + 
+                           pos[0] + "," + pos[1] + "," + phenotype + "," + 
+                           genotype_L + "," + genotype_A + "\n";
+    }
+
+    writeFile(filename, positions_output, append=T);
+}
+
+
+
+
 	// Create lag output file header (only once)
 	if (isNULL(sim.getValue("lag_header_written"))) {
 		sim.setValue("lag_header_written", T);
@@ -222,6 +258,7 @@ late() {
 		          "tick\tobsLagLarvae\tpredLagLarvae\tobsLagAdults\tpredLagAdults\n",
 		          append=F);
 	}
+
 
 	// Only perform lag prediction calculations in summer
 	if (sim.getValue("season") != "summer")
@@ -333,7 +370,7 @@ early() {
 		sim.setValue("season", "winter");
 		
 		if (sim.cycle < BURNIN) {
-			defineGlobal("TEMPMAP", WINTER_TEMPMAP);  // original, unchanged
+			defineGlobal("TEMPMAP", WINTER_TEMPMAP);  
 		} else {
 			years_since_burnin = asInteger((sim.cycle - BURNIN) / 2);
 			delta_temp = years_since_burnin * ETA;
@@ -344,7 +381,7 @@ early() {
 		sim.setValue("season", "summer");
 		
 		if (sim.cycle < BURNIN) {
-			defineGlobal("TEMPMAP", SUMMER_TEMPMAP);  // original, unchanged
+			defineGlobal("TEMPMAP", SUMMER_TEMPMAP);  
 		} else {
 			years_since_burnin = asInteger((sim.cycle - BURNIN) / 2);
 			delta_temp = years_since_burnin * ETA;
@@ -402,6 +439,7 @@ if (size(toKillAdults) > 0) {
     sim.killIndividuals(toKillAdults);
 }
 
+// prevent larvae from going onto land
 toKillLarvae = c();
 for (ind in larvae) {
     water_val = WATER_MAP.mapValue(ind.spatialPosition);
@@ -425,7 +463,7 @@ for (ind in larvae) {
                       dnorm(0.0, 0.0, (OMEGA - DELTA) * SENSITIVITY_L);
         }
 
-        bh = 1;  // or bh = 1 / (1 + competition / K2) if you want density-dependence
+        bh = 1; 
         ind.fitnessScaling = bh * fitness;
         ind.setValue("genotype", genotype_larvae);
         ind.setValue("plasticity", plasticity_larvae);
@@ -469,8 +507,10 @@ if (size(toKillLarvae) > 0) {
 // *************** FINAL OUTPUT ******************* 
 // ************************************************
 BURNIN + RUNTIME late() {
-	sim.simulationFinished();
+    sim.treeSeqOutput(OUTPATH, simplify = F);
+    sim.simulationFinished();
 }
+
 function (void) setupParams(object<Dictionary>$ defaults) {
 	if (!exists("PARAMFILE")) defineConstant("PARAMFILE", "./params.json");
 	if (!exists("OUTDIR"))   defineConstant("OUTDIR", ".");
@@ -482,13 +522,13 @@ function (void) setupParams(object<Dictionary>$ defaults) {
 	defaults.setValue("OUTBASE", OUTDIR + "/out_" + defaults.getValue("SEED"));
 	defaults.setValue("OUTPATH", OUTDIR + "/out_" + defaults.getValue("SEED") + ".trees");
 	
-	// materialize into Eidos constants
+
 	for (key in defaults.allKeys) {
 		if (!exists(key)) defineConstant(key, defaults.getValue(key));
 		else              defaults.setValue(key, executeLambda(key + ";"));
 	}
 	
-	// print them
+
 	catn("===========================");
 	catn("Model constants: " + defaults.serialize("pretty"));
 	catn("===========================");
